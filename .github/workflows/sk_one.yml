@@ -1,0 +1,88 @@
+# .github/workflows/sk_one.yml
+name: sk_one
+
+on:
+  schedule:
+    - cron: '9 20 * * *'
+  workflow_dispatch:
+
+jobs:
+  add_time:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      actions: write
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: python env
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb x11-utils xdotool scrot
+
+      - name: fonts
+        run: |
+          sudo apt-get install -y fonts-nanum fonts-noto-cjk
+
+      - name: python
+        run: |
+          python -m pip install --upgrade pip
+          pip install seleniumbase aiohttp pynacl
+
+      - name: run
+        env:
+          WEIRDHOST_COOKIE_1: ${{ secrets.WEIRDHOST_COOKIE_1 }}
+          WEIRDHOST_COOKIE_2: ${{ secrets.WEIRDHOST_COOKIE_2 }}
+          WEIRDHOST_COOKIE_3: ${{ secrets.WEIRDHOST_COOKIE_3 }}
+          WEIRDHOST_COOKIE_4: ${{ secrets.WEIRDHOST_COOKIE_4 }}
+          WEIRDHOST_COOKIE_5: ${{ secrets.WEIRDHOST_COOKIE_5 }}
+          TG_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GOTIFY_TOKEN: ${{ secrets.GOTIFY_TOKEN }}
+          GOTIFY_SERVER_URL: ${{ secrets.GOTIFY_SERVER_URL }}
+          REPO_TOKEN: ${{ secrets.REPO_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          RENEW_THRESHOLD_DAYS: "12"  # 
+        run: |
+          xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" python scripts/sk_one.py
+
+      # - name: debug
+      #   if: always()
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: debug-screenshots
+      #     path: "*.png"
+      #     retention-days: 3
+
+      - name: Update README
+        run: |
+            DATE=$(TZ='Asia/Shanghai' date '+%Y/%m/%d %H:%M:%S')
+            echo "Last run: ${DATE}" > README.md
+            git checkout --orphan tmp_work
+            git branch -d main
+            echo "DATE=${DATE}" >> $GITHUB_ENV
+
+      - name: Upload to repository
+        uses: stefanzweifel/git-auto-commit-action@v4.16.0
+        with:
+          commit_message: LAST RUN - ${{ env.DATE }}
+          create_branch: true
+          branch: main
+          push_options: --force
+
+      - name: clean
+        uses: Mattraks/delete-workflow-runs@v2
+        with:
+          token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          delete_workflow_pattern: ${{ github.workflow }}
+          retain_days: 0
+          keep_minimum_runs: 3
